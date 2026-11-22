@@ -206,7 +206,11 @@ impl App {
         }
         if let Some(window) = self.window {
             let input = extensions.input_state();
-            crate::platform::window().set_plugin_input(window.id(), input.captured, input.keyboard);
+                        // A plugin refresh must not take the keyboard away from the focused
+            // LingoSoul chat field: that cancels an IME composition mid-word,
+            // which is what made Chinese input look broken.
+            let keyboard = input.keyboard || self.lingosoul.chat.focused;
+            crate::platform::window().set_plugin_input(window.id(), input.captured, keyboard);
             if extensions.take_changed() {
                 self.next_frame_deadline = Instant::now();
                 let size = self.required_window_size();
