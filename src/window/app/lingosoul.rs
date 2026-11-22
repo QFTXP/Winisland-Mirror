@@ -75,7 +75,7 @@ pub(super) struct LingoSoulView {
     pull: f32,
     /// `is_active` as of the last `activity_changed`.
     was_active: bool,
-    chat: ChatPanel,
+    pub(crate) chat: ChatPanel,
     window_extended: bool,
     screen_h: f32,
     ctrl: bool,
