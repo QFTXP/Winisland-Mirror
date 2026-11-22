@@ -595,19 +595,24 @@ impl WindowSystem for WindowsWindowSystem {
         }
     }
 
-    fn set_text_input(&self, id: WindowId, area: Option<winisland_platform::Rect>) {
-        let _ = with_window(id, |window| {
-            window.set_ime_allowed(area.is_some());
-            if let Some(area) = area {
-                window.set_ime_cursor_area(
-                    PhysicalPosition::new(area.left, area.top),
-                    PhysicalSize::new(
-                        (area.right - area.left).max(1) as u32,
-                        (area.bottom - area.top).max(1) as u32,
-                    ),
-                );
-            }
-        });
+        fn set_text_input(&self, id: WindowId, area: Option<winisland_platform::Rect>) {
+        // Island windows take keyboard focus through their hit-test input
+        // window, so the IME and its candidate box must be bound to that
+        // window as well. Binding them to the overlay leaves the composition
+        // without a focused owner, and Chinese input never commits.
+        let Some(window) = get_input_window(id) else {
+            return;
+        };
+        window.set_ime_allowed(area.is_some());
+        if let Some(area) = area {
+            window.set_ime_cursor_area(
+                PhysicalPosition::new(area.left, area.top),
+                PhysicalSize::new(
+                    (area.right - area.left).max(1) as u32,
+                    (area.bottom - area.top).max(1) as u32,
+                ),
+            );
+        }
     }
 
     fn set_titlebar_theme(&self, id: WindowId, is_light: bool) {
