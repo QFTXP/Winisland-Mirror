@@ -1,0 +1,79 @@
+name: Build patched installer
+
+# Builds a self-contained Inno Setup installer from this fork's source.
+# The repository's own release workflow expects a signing certificate in
+# repository secrets; a fork does not have it, so this workflow creates a
+# throwaway self-signed certificate with the same subject
+# (CN=Eatgrapes.WinIsland) and signs the identity package and the installer
+# with it. The installer therefore shows "unknown publisher" on other PCs
+# until its certificate is imported, which the installer itself does.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Install Inno Setup
+        run: choco install ninja innosetup -y --no-progress
+
+      - name: Prepare speech runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./packaging/Prepare-SpeechRuntime.ps1
+
+      - name: Build release
+        env:
+          WINISLAND_PACKAGE_CHANNEL: stable
+        run: cargo build --release --locked --features lingosoul
+
+      - name: Create throwaway signing certificate
+        shell: pwsh
+        run: |
+          $password = ConvertTo-SecureString -String 'winisland-imefix' -Force -AsPlainText
+          $cert = New-SelfSignedCertificate `
+            -Type CodeSigningCert `
+            -Subject 'CN=Eatgrapes.WinIsland' `
+            -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'WinIsland unofficial build' `
+            -CertStoreLocation 'Cert:\CurrentUser\My'
+          $pfx = Join-Path $env:RUNNER_TEMP 'winisland-unofficial.pfx'
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $password | Out-Null
+          "PFX_PATH=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PFX_PASSWORD=winisland-imefix" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          ./packaging/installer/Build-Installer.ps1 `
+            -Channel stable `
+            -Version 2.0.1.0 `
+            -CertificatePath $env:PFX_PATH `
+            -CertificatePassword $env:PFX_PASSWORD `
+            -OutputDirectory ./target/installer/stable
+
+      - name: Rename installer
+        shell: pwsh
+        run: |
+          Copy-Item ./target/installer/stable/installer/WinIsland-Setup.exe `
+                    ./target/installer/stable/installer/WinIsland-2.0.1-imefix-Setup.exe
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinIsland-2.0.1-imefix-setup
+          path: target/installer/stable/installer/WinIsland-2.0.1-imefix-Setup.exe
+          if-no-files-found: error
