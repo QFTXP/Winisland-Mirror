@@ -73,7 +73,7 @@ pub struct LiquidMaterial {
 }
 
 impl LiquidMaterial {
-    pub fn island(scale: f32) -> Self {
+        pub fn island(scale: f32) -> Self {
         Self {
             bezel_width: 18.0 * scale,
             thickness: 14.0 * scale,
@@ -83,19 +83,19 @@ impl LiquidMaterial {
             morph_dispersion: 0.06,
             tint: Rgba::from_argb(95, 10, 11, 15),
             legibility: 0.32,
-            light: Vec2::new(0.0, -1.0),
-            specular_strength: 0.55,
-            opposite_specular_strength: 0.3,
-            specular_sharpness: 1.5,
+            light: Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
+            specular_strength: 0.75,
+            opposite_specular_strength: 0.38,
+            specular_sharpness: 3.0,
             specular_falloff: 0.9,
-            specular_opacity: 0.6,
-            specular_width: 0.9 * scale,
+            specular_opacity: 0.8,
+            specular_width: 1.5 * scale,
             stroke_width: 0.65 * scale,
             stroke_opacity: 0.25,
             stroke_offset_y: 0.2 * scale,
             // Device pixels, not scaled: a hairline at every DPI.
             border_width: 0.5,
-            border_opacity: 0.5,
+            border_opacity: 0.0,
             border_gray: 0.0,
             shadow_offset: Vec2::new(0.0, 7.0 * scale),
             shadow_radius: 4.0 * scale,
@@ -107,7 +107,7 @@ impl LiquidMaterial {
             lingosoul_wave: [0.0; 4],
         }
     }
-
+    
     /// Scales rim displacement by `refraction` and sets the channel split to `dispersion` (0..1).
     pub fn with_optics(mut self, refraction: f32, dispersion: f32) -> Self {
         self.displacement_factor *= refraction.max(0.0);
