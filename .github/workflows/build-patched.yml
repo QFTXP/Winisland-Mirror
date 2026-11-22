@@ -1,0 +1,62 @@
+name: Build patched WinIsland
+
+# Builds WinIsland 2.0.1 from this fork's source and uploads a runnable exe
+# (plus the speech runtime DLLs) as a workflow artifact.
+#
+# Run it from the Actions tab: "Build patched WinIsland" -> Run workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Prepare speech runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./packaging/Prepare-SpeechRuntime.ps1
+
+      - name: Build release
+        env:
+          WINISLAND_PACKAGE_CHANNEL: stable
+        run: cargo build --release --locked --features lingosoul
+
+      - name: Stage artifact
+        shell: pwsh
+        run: |
+          $out = "artifact"
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          Copy-Item "target/release/WinIsland.exe" $out -Force
+          Get-ChildItem "target/release" -Filter *.dll -File -ErrorAction SilentlyContinue |
+            Copy-Item -Destination $out -Force
+          $prebuilt = "target/sherpa-onnx-prebuilt"
+          if (Test-Path $prebuilt) {
+            Get-ChildItem $prebuilt -Recurse -Filter *.dll -File |
+              Where-Object { $_.DirectoryName -match '\\lib$' } |
+              ForEach-Object {
+                if (-not (Test-Path (Join-Path $out $_.Name))) {
+                  Copy-Item $_.FullName $out
+                }
+              }
+          }
+          if (Test-Path "resources") { Copy-Item "resources" $out -Recurse -Force }
+          Get-ChildItem $out -Recurse -File | Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinIsland-2.0.1-imefix
+          path: artifact/**
+          if-no-files-found: error
