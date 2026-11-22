@@ -5,9 +5,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::config::{
-    AppConfig, MAX_HIDDEN_WIDTH, MIN_HIDDEN_WIDTH, WIDGET_GRID_SLOTS, ensure_settings_widget,
-    migrate, normalize_compact_widget_layout, normalize_expanded_pages, normalize_resource_metrics,
-    set_resource_widget_span,
+    AppConfig, WIDGET_GRID_SLOTS, clamp_schema_numbers, ensure_settings_widget, migrate,
+    migrate_legacy_keys, normalize_compact_widget_layout, normalize_expanded_pages,
+    normalize_resource_metrics, set_resource_widget_span,
 };
 
 static NEXT_CONFIG_WRITE_ID: AtomicU64 = AtomicU64::new(1);
@@ -19,7 +19,7 @@ pub fn load_config_at(path: &Path) -> AppConfig {
         Err(error) if error.kind() == ErrorKind::NotFound => {
             log::info!("Config file not found, using defaults");
             let default = AppConfig::default();
-            save_config_at(path, &default);
+            save_after_load(path, &default);
             return default;
         }
         Err(error) => {
@@ -38,7 +38,7 @@ pub fn load_config_at(path: &Path) -> AppConfig {
                         backup.display()
                     );
                     let default = AppConfig::default();
-                    save_config_at(path, &default);
+                    save_after_load(path, &default);
                     return default;
                 }
                 Err(backup_error) => {
@@ -52,125 +52,15 @@ pub fn load_config_at(path: &Path) -> AppConfig {
         }
     };
     if let Ok(table) = toml::from_str::<toml::Table>(&content) {
-        if !table.contains_key("system_controls_overlay")
-            && (table.contains_key("replace_native_volume_flyout")
-                || table.contains_key("brightness_overlay_enabled"))
-        {
-            let volume = table
-                .get("replace_native_volume_flyout")
-                .and_then(toml::Value::as_bool)
-                .unwrap_or(true);
-            let brightness = table
-                .get("brightness_overlay_enabled")
-                .and_then(toml::Value::as_bool)
-                .unwrap_or(true);
-            config.system_controls_overlay = volume || brightness;
-        }
-        migrated |= [
-            "animation_fps",
-            "expanded_idle_fps",
-            "replace_native_volume_flyout",
-            "brightness_overlay_enabled",
-        ]
-        .iter()
-        .any(|key| table.contains_key(*key));
-        if !table.contains_key("fullscreen_auto_hide") {
-            config.fullscreen_auto_hide = config.auto_hide;
-            migrated = true;
-        }
-        if !table.contains_key("expanded_scale") {
-            config.expanded_scale = config.compact_scale;
-            migrated = true;
-        }
-        if let Some(fully_hide) = table.get("fully_hide").and_then(toml::Value::as_bool) {
-            if !table.contains_key("hidden_width") && fully_hide {
-                config.hidden_width = MIN_HIDDEN_WIDTH;
-            }
-            migrated = true;
-        }
-        if !table.contains_key("lyrics_mode") {
-            config.lyrics_mode = if config
-                .lyrics_local_dir
-                .as_deref()
-                .is_some_and(|dir| !dir.trim().is_empty())
-            {
-                "lrc"
-            } else {
-                "online"
-            }
-            .to_string();
-            migrated = true;
-        }
-        if let Some(entries) = table
-            .get("compact_widget_layout")
-            .and_then(toml::Value::as_array)
-        {
-            for (entry, raw_entry) in config.compact_widget_layout.iter_mut().zip(entries) {
-                if raw_entry
-                    .as_table()
-                    .is_some_and(|table| !table.contains_key("alignment"))
-                {
-                    entry.alignment =
-                        crate::config::CompactWidgetAlignment::legacy_slot(entry.slot);
-                    migrated = true;
-                }
-            }
-        }
-        if !table.contains_key("compact_resource_metrics") {
-            config.compact_resource_metrics = config.resource_metrics.clone();
-            migrated = true;
-        }
+        migrated |= migrate_legacy_keys(&table, &mut config);
     }
     let loaded_version = config.config_version;
     if migrate(&mut config, loaded_version) {
         migrated = true;
     }
-    config.compact_scale = config.compact_scale.clamp(0.5, 5.0);
-    config.expanded_scale = config.expanded_scale.clamp(0.5, 5.0);
-    config.base_width = config.base_width.clamp(40.0, 400.0);
-    config.base_height = config.base_height.clamp(15.0, 200.0);
-    config.lyrics_side_gap = if config.lyrics_side_gap.is_finite() {
-        config.lyrics_side_gap.clamp(0.0, 32.0)
-    } else {
-        AppConfig::default().lyrics_side_gap
-    };
-    config.music_text_y_offset = if config.music_text_y_offset.is_finite() {
-        config.music_text_y_offset.clamp(-32.0, 32.0)
-    } else {
-        AppConfig::default().music_text_y_offset
-    };
-    config.music_text_line_spacing = if config.music_text_line_spacing.is_finite() {
-        config.music_text_line_spacing.clamp(8.0, 64.0)
-    } else {
-        AppConfig::default().music_text_line_spacing
-    };
-    config.liquid_glass_blur = if config.liquid_glass_blur.is_finite() {
-        config.liquid_glass_blur.clamp(0.0, 30.0)
-    } else {
-        AppConfig::default().liquid_glass_blur
-    };
-    config.liquid_glass_refraction = if config.liquid_glass_refraction.is_finite() {
-        config.liquid_glass_refraction.clamp(0.0, 400.0)
-    } else {
-        AppConfig::default().liquid_glass_refraction
-    };
-    config.liquid_glass_dispersion = if config.liquid_glass_dispersion.is_finite() {
-        config.liquid_glass_dispersion.clamp(0.0, 100.0)
-    } else {
-        AppConfig::default().liquid_glass_dispersion
-    };
-    config.liquid_glass_tint = if config.liquid_glass_tint.is_finite() {
-        config.liquid_glass_tint.clamp(0.0, 200.0)
-    } else {
-        AppConfig::default().liquid_glass_tint
-    };
-    config.glass_blur = if config.glass_blur.is_finite() {
-        config.glass_blur.clamp(0.0, 50.0)
-    } else {
-        AppConfig::default().glass_blur
-    };
-    config.expanded_width = config.expanded_width.clamp(200.0, 2000.0);
-    config.expanded_height = config.expanded_height.clamp(100.0, 1000.0);
+    if clamp_schema_numbers(&mut config) {
+        migrated = true;
+    }
     let resource_span =
         set_resource_widget_span(config.resource_widget_columns, config.resource_widget_rows);
     if (config.resource_widget_columns, config.resource_widget_rows) != resource_span {
@@ -180,13 +70,6 @@ pub fn load_config_at(path: &Path) -> AppConfig {
     }
     if config.island_style == "mica" {
         config.island_style = "default".to_string();
-        migrated = true;
-    }
-    let hidden_width = config
-        .hidden_width
-        .clamp(MIN_HIDDEN_WIDTH, MAX_HIDDEN_WIDTH);
-    if hidden_width != config.hidden_width {
-        config.hidden_width = hidden_width;
         migrated = true;
     }
     if !matches!(config.lyrics_mode.as_str(), "online" | "lrc") {
@@ -232,23 +115,51 @@ pub fn load_config_at(path: &Path) -> AppConfig {
         migrated = true;
     }
     if migrated {
-        save_config_at(path, &config);
+        save_after_load(path, &config);
     }
     config
 }
 
-pub fn save_config_at(path: &Path, config: &AppConfig) {
-    let content = match toml::to_string_pretty(config) {
-        Ok(content) => content,
-        Err(error) => {
-            log::error!("Cannot serialize config: {error}");
-            return;
-        }
-    };
-    if let Err(error) = write_config_atomically(path, content.as_bytes()) {
+pub fn save_config_at(path: &Path, config: &AppConfig) -> Result<(), PersistError> {
+    let content = toml::to_string_pretty(config)
+        .map_err(|error| PersistError::Serialize(error.to_string()))?;
+    write_config_atomically(path, content.as_bytes()).map_err(PersistError::Write)?;
+    log::info!("Config saved to: {}", path.display());
+    Ok(())
+}
+
+/// Writes the config after a load that had to repair it.
+///
+/// The caller is a load path with nothing to report to; the error is logged
+/// instead of returned so that a read-only config directory still yields the
+/// repaired in-memory config.
+fn save_after_load(path: &Path, config: &AppConfig) {
+    if let Err(error) = save_config_at(path, config) {
         log::error!("Cannot save config '{}': {error}", path.display());
-    } else {
-        log::info!("Config saved to: {}", path.display());
+    }
+}
+
+#[derive(Debug)]
+pub enum PersistError {
+    Serialize(String),
+    Write(std::io::Error),
+}
+
+impl std::fmt::Display for PersistError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Serialize(message) => write!(f, "cannot serialize config: {message}"),
+            Self::Write(error) => write!(f, "cannot write config: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for PersistError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Write(error) => Some(error),
+            Self::Serialize(_) => None,
+        }
     }
 }
 

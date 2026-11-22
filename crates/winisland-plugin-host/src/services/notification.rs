@@ -106,10 +106,6 @@ pub unsafe extern "C" fn alert_state(
         // SAFETY: The ABI caller supplies a live instance context.
         let host = unsafe { runtime(context)? };
         host.registry.require(token, CAP_NOTIFY)?;
-        // SAFETY: The ABI requires a writable, initialized sized output.
-        unsafe {
-            read_struct(out)?;
-        }
         let state = host.state.lock().map_err(|_| PluginStatus::Internal)?;
         let visible = state
             .alert

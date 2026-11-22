@@ -161,7 +161,7 @@ fn note(page: &mut SettingsPage<LingoSoulAction>, text: String, width: f32) {
 }
 
 impl SettingsApp {
-    fn build_lingosoul_page(&self) -> SettingsPage<LingoSoulAction> {
+    pub(crate) fn build_lingosoul_page(&self) -> SettingsPage<LingoSoulAction> {
         let config = LingoSoulConfig::load();
         let note_width =
             (self.content_width() - CONTENT_PADDING * 2.0 - GROUP_INNER_PAD * 2.0).max(1.0);

@@ -121,7 +121,7 @@ impl App {
             InputState::Released => {
                 if self.is_right_dragging {
                     self.is_right_dragging = false;
-                    crate::core::persistence::save_config(&self.config);
+                    crate::core::persistence::save_config_logged(&self.config);
                     log::info!(
                         "Right click drag offsets saved: ({}, {})",
                         self.config.position_x_offset,

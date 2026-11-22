@@ -26,6 +26,6 @@ pub use path::{Path, PathBuilder};
 pub use surface::{NativeSurface, RasterSurface, SURFACE_TAG_WIN32_HWND};
 pub use types::{
     Angle, BlurSpec, FontStyle, FontWeight, FontWidth, GradientStop, ImageFit, ImageOptions,
-    LayerSpec, Mipmapped, PaintStyle, Point, Radius, Rect, Rgba, Sampling, Slant, SrcConstraint,
-    StrokeCap, StrokeJoin, TileMode, Vec2,
+    LayerSpec, Mipmapped, Point, Radius, Rect, Rgba, Sampling, Slant, SrcConstraint, StrokeCap,
+    StrokeJoin, TileMode, Vec2,
 };

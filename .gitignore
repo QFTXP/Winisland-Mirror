@@ -3,6 +3,7 @@
 
 .idea/
 /.claude/
+/.local/
 /.planning/
 /.trae/
 /my-winisland-plugin/

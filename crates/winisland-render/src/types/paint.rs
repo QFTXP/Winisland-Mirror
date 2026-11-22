@@ -1,13 +1,6 @@
 use super::color::Rgba;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
-pub enum PaintStyle {
-    #[default]
-    Fill,
-    Stroke,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub enum StrokeCap {
     #[default]
     Butt,

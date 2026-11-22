@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use winisland_platform::{MediaContext, MediaSessionHandle};
 
-use crate::core::persistence::{load_config, save_config};
+use crate::core::persistence::{load_config, save_config_logged};
 
 pub(super) fn auto_allow_new_apps(
     manager: &dyn MediaContext,
@@ -39,7 +39,7 @@ pub(super) fn auto_allow_new_apps(
         }
     }
     if changed {
-        save_config(&config);
+        save_config_logged(&config);
         log::info!("SMTC: recorded new media session(s): {new_app_ids:?}");
     }
     known_apps.clone_from(&config.smtc_known_apps);

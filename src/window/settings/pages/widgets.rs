@@ -454,7 +454,7 @@ impl SettingsApp {
         if old_widget_layout != self.config.widget_layout
             || old_plugin_layout != self.config.plugin_widget_layout
         {
-            crate::core::persistence::save_config(&self.config);
+            self.persist_config();
             self.widget_drop_animation = Some(WidgetDropAnimation {
                 target: drop_target,
                 progress: 0.0,
@@ -477,7 +477,7 @@ impl SettingsApp {
         }
         self.mark_items_dirty();
         if old_layout != self.config.compact_widget_layout {
-            crate::core::persistence::save_config(&self.config);
+            self.persist_config();
             self.widget_drop_animation = Some(WidgetDropAnimation {
                 target: WidgetDropTarget::Compact(widget),
                 progress: 0.0,
@@ -526,7 +526,7 @@ impl SettingsApp {
         });
         if let Some(anchor) = built_in_anchor {
             clear_widget_slot(&mut self.config.widget_layout, anchor);
-            crate::core::persistence::save_config(&self.config);
+            self.persist_config();
             self.mark_items_dirty();
             return true;
         }
@@ -544,7 +544,7 @@ impl SettingsApp {
             return false;
         };
         clear_plugin_widget(&mut self.config.plugin_widget_layout, &plugin_id);
-        crate::core::persistence::save_config(&self.config);
+        self.persist_config();
         self.mark_items_dirty();
         true
     }
@@ -586,7 +586,7 @@ impl SettingsApp {
             return false;
         };
         clear_compact_widget_slot(&mut self.config.compact_widget_layout, position);
-        crate::core::persistence::save_config(&self.config);
+        self.persist_config();
         self.mark_items_dirty();
         true
     }

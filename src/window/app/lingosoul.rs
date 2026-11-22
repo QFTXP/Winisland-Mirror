@@ -953,7 +953,7 @@ impl App {
                 button: MouseButton::Left,
                 ..
             } => {
-                let (px, py) = crate::utils::mouse::get_global_cursor_pos();
+                let (px, py) = crate::utils::mouse::get_global_cursor_pos()?;
                 (
                     *state == InputState::Pressed,
                     Point::new((px - self.geom.win_x) as f32, (py - self.geom.win_y) as f32),
@@ -1000,8 +1000,8 @@ impl App {
             return false;
         }
         let local = || {
-            let (px, py) = crate::utils::mouse::get_global_cursor_pos();
-            ((px - self.geom.win_x) as f32, (py - self.geom.win_y) as f32)
+            crate::utils::mouse::get_global_cursor_pos()
+                .map(|(px, py)| ((px - self.geom.win_x) as f32, (py - self.geom.win_y) as f32))
         };
         let focused = self.lingosoul.chat.focused && self.lingosoul.panel_open;
         let consumed = match event {
@@ -1010,11 +1010,15 @@ impl App {
                 button: MouseButton::Left,
                 ..
             } => {
-                let (x, y) = local();
+                let Some((x, y)) = local() else {
+                    return false;
+                };
                 self.chat_press(x, y)
             }
             PlatformEvent::MouseInput { .. } => {
-                let (x, y) = local();
+                let Some((x, y)) = local() else {
+                    return false;
+                };
                 self.chat_island_rect().contains(Point::new(x, y))
             }
             PlatformEvent::Touch {
@@ -1028,7 +1032,9 @@ impl App {
                 }
             }
             PlatformEvent::MouseWheel { delta, .. } if self.lingosoul.panel_open => {
-                let (x, y) = local();
+                let Some((x, y)) = local() else {
+                    return false;
+                };
                 if !self.chat_island_rect().contains(Point::new(x, y)) {
                     return false;
                 }
@@ -1092,7 +1098,9 @@ impl App {
                 && !self.components_hidden
                 && !self.compact_overlay.is_visible() =>
             {
-                let (x, y) = crate::utils::mouse::get_global_cursor_pos();
+                let Some((x, y)) = crate::utils::mouse::get_global_cursor_pos() else {
+                    return false;
+                };
                 let point = Point::new((x - self.geom.win_x) as f32, (y - self.geom.win_y) as f32);
                 if self.chat_island_rect().contains(point) {
                     self.lingosoul.hold = Some((Instant::now(), Point::new(x as f32, y as f32)));
@@ -1123,7 +1131,9 @@ impl App {
         let Some((started, origin)) = self.lingosoul.hold else {
             return;
         };
-        let (x, y) = crate::utils::mouse::get_global_cursor_pos();
+        let Some((x, y)) = crate::utils::mouse::get_global_cursor_pos() else {
+            return;
+        };
         let threshold = (8.0 * self.config.compact_scale).max(6.0);
         let point = Point::new((x - self.geom.win_x) as f32, (y - self.geom.win_y) as f32);
         if self.expanded

@@ -54,7 +54,7 @@ impl SettingsApp {
         }
         self.mark_items_dirty();
         if layout_changed {
-            crate::core::persistence::save_config(&self.config);
+            self.persist_config();
         }
         self.request_redraw();
     }

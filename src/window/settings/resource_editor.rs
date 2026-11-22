@@ -208,7 +208,7 @@ impl SettingsApp {
         let added = add_detected_gpu_metrics(&mut self.config.resource_metrics, gpu_count)
             | add_detected_gpu_metrics(&mut self.config.compact_resource_metrics, gpu_count);
         if added {
-            crate::core::persistence::save_config(&self.config);
+            self.persist_config();
         }
         self.resource_editor = ResourceEditorState::default();
         self.resource_editor_open = true;
@@ -566,7 +566,7 @@ impl SettingsApp {
             &self.config.resource_metrics,
             &self.config.compact_resource_metrics,
         );
-        crate::core::persistence::save_config(&self.config);
+        self.persist_config();
         self.mark_items_dirty();
         self.request_redraw();
     }

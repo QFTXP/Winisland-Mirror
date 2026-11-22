@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use winisland_core::config::{AppConfig, ExpandedPageKind, PluginPageSlot};
 use winisland_platform::{HostBackdropParams, TrayAction, WindowSize};
 use winisland_utils::poll::Job;
 
@@ -13,6 +14,85 @@ use winisland_render::RendererOptions;
 use super::{App, BackdropCaptureState};
 
 const BACKDROP_CAPTURE_RETRY: Duration = Duration::from_secs(10);
+
+/// The configuration values the reload path acts on.
+///
+/// A setting that needs its own reload action joins the matching group here, so
+/// the comparison cannot drift away from the field list: the group is the only
+/// place that names the fields.
+struct ReloadSnapshot {
+    layout: LayoutSettings,
+    position: (i32, i32, i32),
+    style: String,
+    font: (Option<String>, Option<String>, String, String),
+    smtc_enabled: bool,
+    system_controls_overlay: bool,
+    page_order: (
+        Vec<ExpandedPageKind>,
+        Vec<ExpandedPageKind>,
+        Vec<PluginPageSlot>,
+    ),
+}
+
+struct LayoutSettings {
+    compact_scale: f32,
+    expanded_scale: f32,
+    base_width: f32,
+    base_height: f32,
+    expanded_width: f32,
+    expanded_height: f32,
+}
+
+impl LayoutSettings {
+    fn from_config(config: &AppConfig) -> Self {
+        Self {
+            compact_scale: config.compact_scale,
+            expanded_scale: config.expanded_scale,
+            base_width: config.base_width,
+            base_height: config.base_height,
+            expanded_width: config.expanded_width,
+            expanded_height: config.expanded_height,
+        }
+    }
+
+    /// Compares with the tolerances the resize path uses, so a rounded save does
+    /// not reflow the island.
+    fn same_as(&self, other: &Self) -> bool {
+        (self.compact_scale - other.compact_scale).abs() <= 0.001
+            && (self.expanded_scale - other.expanded_scale).abs() <= 0.001
+            && (self.base_width - other.base_width).abs() <= 0.1
+            && (self.base_height - other.base_height).abs() <= 0.1
+            && (self.expanded_width - other.expanded_width).abs() <= 0.1
+            && (self.expanded_height - other.expanded_height).abs() <= 0.1
+    }
+}
+
+impl ReloadSnapshot {
+    fn from_config(config: &AppConfig) -> Self {
+        Self {
+            layout: LayoutSettings::from_config(config),
+            position: (
+                config.position_x_offset,
+                config.position_y_offset,
+                config.monitor_index,
+            ),
+            style: config.island_style.clone(),
+            font: (
+                config.custom_font_path.clone(),
+                config.font_family.clone(),
+                config.font_weight.clone(),
+                config.language.clone(),
+            ),
+            smtc_enabled: config.smtc_enabled,
+            system_controls_overlay: config.system_controls_overlay,
+            page_order: (
+                config.expanded_page_order.clone(),
+                config.hidden_expanded_pages.clone(),
+                config.plugin_pages.clone(),
+            ),
+        }
+    }
+}
 
 pub(super) fn update_host_backdrop(
     host_backdrop: &mut bool,
@@ -402,7 +482,7 @@ impl App {
             &mut config.plugin_widget_layout,
             &plugin_widgets,
         ) {
-            crate::core::persistence::save_config(&config);
+            crate::core::persistence::save_config_logged(&config);
         }
         let plugin_settings_pages = self
             .plugin_host
@@ -425,7 +505,11 @@ impl App {
             log::error!("Cannot open settings without the shared D3D12 renderer");
             return;
         };
-        settings.create_window(renderer, target_monitor);
+        if let Err(error) = settings.create_window(renderer, target_monitor) {
+            log::error!("Failed to open settings window: {error}");
+            Self::show_toast("Settings", "The settings window could not be opened");
+            return;
+        }
         settings.set_plugin_inventory_scan(self.plugin_mgr.installed_plugins_async());
         if let Some(catalog) = self.marketplace_catalog.clone() {
             settings.set_marketplace_catalog(catalog);
@@ -472,7 +556,7 @@ impl App {
             self.config.onboarding_completed = true;
             let mut config = load_config();
             config.onboarding_completed = true;
-            crate::core::persistence::save_config(&config);
+            crate::core::persistence::save_config_logged(&config);
         }
         log::info!("Beginner guide closed");
     }
@@ -563,36 +647,13 @@ impl App {
                 self.last_config_modified = modified;
                 let current_config = load_config();
                 if current_config != self.config {
-                    let old_compact_scale = self.config.compact_scale;
-                    let old_expanded_scale = self.config.expanded_scale;
-                    let old_base_w = self.config.base_width;
-                    let old_base_h = self.config.base_height;
-                    let old_max_w = self.config.expanded_width;
-                    let old_max_h = self.config.expanded_height;
-                    let old_style = self.config.island_style.clone();
-                    let old_mini_shape = self.config.mini_cover_shape.clone();
-                    let old_expanded_shape = self.config.expanded_cover_shape.clone();
-                    let old_font = (
-                        self.config.custom_font_path.clone(),
-                        self.config.font_family.clone(),
-                        self.config.font_weight.clone(),
-                        self.config.language.clone(),
-                    );
-                    let old_smtc_enabled = self.config.smtc_enabled;
-                    let old_system_controls_overlay = self.config.system_controls_overlay;
-                    let old_position_x_offset = self.config.position_x_offset;
-                    let old_position_y_offset = self.config.position_y_offset;
-                    let old_monitor_index = self.config.monitor_index;
-                    let page_order_changed = self.config.expanded_page_order
-                        != current_config.expanded_page_order
-                        || self.config.hidden_expanded_pages
-                            != current_config.hidden_expanded_pages
-                        || self.config.plugin_pages != current_config.plugin_pages;
+                    let old = ReloadSnapshot::from_config(&self.config);
 
                     log::info!("Config changed, reloaded");
                     self.config = current_config;
+                    let new = ReloadSnapshot::from_config(&self.config);
                     window_ref.request_redraw();
-                    if page_order_changed {
+                    if old.page_order != new.page_order {
                         self.snap_to_current_page();
                     }
                     crate::ui::widget::resource_usage::set_configs(
@@ -618,50 +679,29 @@ impl App {
                     self.smtc
                         .set_show_secondary_lyrics(self.config.show_secondary_lyrics);
                     self.smtc.set_allowed_apps(self.config.smtc_apps.clone());
-                    if old_system_controls_overlay != self.config.system_controls_overlay {
+                    if old.system_controls_overlay != new.system_controls_overlay {
                         self.compact_overlay.set_system_controls_overlay_enabled(
                             self.config.system_controls_overlay,
                         );
                     }
-                    if old_smtc_enabled != self.config.smtc_enabled {
+                    if old.smtc_enabled != new.smtc_enabled {
                         self.smtc.set_enabled(self.config.smtc_enabled);
                         self.audio.set_target_app_id(self.audio_target_app_id());
                     }
 
-                    if old_style != self.config.island_style {
+                    if old.style != new.style {
                         crate::utils::backdrop::clear_blurred_cover_cache();
                     }
 
-                    if old_mini_shape != self.config.mini_cover_shape
-                        || old_expanded_shape != self.config.expanded_cover_shape
-                    {
-                        crate::ui::expanded::music_view::clear_cover_cache();
-                    }
-
-                    if old_font
-                        != (
-                            self.config.custom_font_path.clone(),
-                            self.config.font_family.clone(),
-                            self.config.font_weight.clone(),
-                            self.config.language.clone(),
-                        )
-                    {
+                    if old.font != new.font {
                         crate::utils::fonts::apply(&self.config);
                     }
 
                     let window_size = self.required_window_size();
                     let surface_size_changed =
                         window_size.width != self.geom.os_w || window_size.height != self.geom.os_h;
-                    let layout_size_changed = (old_compact_scale - self.config.compact_scale).abs()
-                        > 0.001
-                        || (old_expanded_scale - self.config.expanded_scale).abs() > 0.001
-                        || (old_base_w - self.config.base_width).abs() > 0.1
-                        || (old_base_h - self.config.base_height).abs() > 0.1
-                        || (old_max_w - self.config.expanded_width).abs() > 0.1
-                        || (old_max_h - self.config.expanded_height).abs() > 0.1;
-                    let position_changed = old_position_x_offset != self.config.position_x_offset
-                        || old_position_y_offset != self.config.position_y_offset
-                        || old_monitor_index != self.config.monitor_index;
+                    let layout_size_changed = !old.layout.same_as(&new.layout);
+                    let position_changed = old.position != new.position;
 
                     if surface_size_changed {
                         self.geom.os_w = window_size.width;

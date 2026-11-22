@@ -33,7 +33,6 @@ dependencies = [
  "tray-icon",
  "wasapi",
  "windows",
- "windows-core",
  "winisland-builtin-plugins",
  "winisland-core",
  "winisland-lingosoul",

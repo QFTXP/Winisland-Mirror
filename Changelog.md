@@ -16,6 +16,12 @@
 - The timer can be enabled or disabled from the Plugins page, and the clock widget follows the system's 12/24-hour format
 - Kept Simplified Chinese and English interface languages, and removed footage recording and its tray entry
 - Improved code quality and maintainability by splitting large frame and settings modules and sharing common helpers
+- Fixed the app aborting when the settings window could not be created; it now reports the failure and keeps running
+- Fixed island hover and hit-testing running against the desktop's top-left corner when the cursor position was unavailable
+- Settings now reports a change that could not be written to disk, instead of keeping it only in memory without a hint
+- Fixed plugin state queries failing unless the plugin had pre-filled the output structure
+- Numeric settings are repaired from their declared limits on load, so a stale value can no longer sit outside the range the interface offers
+- Removed the cover shape, cover rotation, and translation entries left over from earlier releases
 
 ### v2.0.0
 - Added LingoSoul, a voice and chat assistant on the island with a wake word, listening and thinking animations, reply cards, and a chat panel with Markdown and saved history

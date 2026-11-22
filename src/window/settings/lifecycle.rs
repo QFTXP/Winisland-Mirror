@@ -114,8 +114,10 @@ impl SettingsApp {
         &mut self,
         renderer: &mut Renderer,
         target_monitor: Option<MonitorRef>,
-    ) {
+    ) -> Result<(), String> {
         self.target_monitor = target_monitor;
+        #[cfg(debug_assertions)]
+        self.verify_setting_placement();
         let id = window()
             .create_settings(SettingsSpec {
                 title: "WinIsland Settings",
@@ -123,7 +125,7 @@ impl SettingsApp {
                 monitor: self.target_monitor.as_ref().map(MonitorRef::id),
                 resizable: true,
             })
-            .expect("Settings window creation failed");
+            .map_err(|error| format!("cannot create the settings window: {error}"))?;
         let window_ref = WindowRef(id);
         self.window = Some(window_ref);
         self.window_backdrop = match window().start_window_backdrop(id) {
@@ -152,13 +154,14 @@ impl SettingsApp {
             Err(error) => {
                 log::error!("Settings renderer initialization failed: {error}");
                 self.close_requested = true;
-                return;
+                return Ok(());
             }
         };
         self.close_requested = false;
         self.next_frame_deadline = Instant::now();
         self.update_theme();
         self.update_detected_apps();
+        Ok(())
     }
 
     pub(crate) fn invalidate_renderer_target(&mut self) {

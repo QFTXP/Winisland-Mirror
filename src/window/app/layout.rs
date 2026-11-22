@@ -212,7 +212,7 @@ impl App {
             (center_x - mon_pos.x as f64 - mon_size.width as f64 / 2.0).round() as i32;
         self.config.position_y_offset =
             (center_y - mon_pos.y as f64 - TOP_OFFSET as f64 - base_half_h).round() as i32;
-        crate::core::persistence::save_config(&self.config);
+        crate::core::persistence::save_config_logged(&self.config);
         log::info!("Migrated legacy dock position to automatic placement");
         true
     }

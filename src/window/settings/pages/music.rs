@@ -14,7 +14,7 @@ pub(crate) fn music_notice_button_rect(width: f32, start_y: f32) -> Rect {
 }
 
 #[derive(Clone)]
-enum MusicAction {
+pub(crate) enum MusicAction {
     LyricsFolder,
     App(String),
 }
@@ -24,7 +24,7 @@ impl SettingsApp {
         current_lang() == "zh_cn" && !self.config.music_notice_acknowledged
     }
 
-    fn build_music_page(&self) -> SettingsPage<MusicAction> {
+    pub(crate) fn build_music_page(&self) -> SettingsPage<MusicAction> {
         let media_available = crate::platform::capabilities().media_session;
         let show_lyrics = self.config.show_lyrics;
         let mut page = SettingsPage::new();

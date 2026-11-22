@@ -5,7 +5,7 @@ use super::{BuiltinPage, SETTINGS_HEADER_H, SettingsApp};
 
 impl SettingsApp {
     pub(crate) fn build_current_items(&self) -> Vec<SettingsItem> {
-        match BuiltinPage::from_index(self.active_page) {
+        let mut items = match BuiltinPage::from_index(self.active_page) {
             Some(BuiltinPage::General) => self.build_general_page().into_items(),
             Some(BuiltinPage::Appearance) => self.build_appearance_page().into_items(),
             Some(BuiltinPage::Layout) => self.build_layout_page().into_items(),
@@ -18,7 +18,16 @@ impl SettingsApp {
             Some(BuiltinPage::LingoSoul) => self.build_lingosoul_items(),
             Some(BuiltinPage::About) => self.build_about_items(),
             None => self.build_plugin_settings_items(),
+        };
+        if let Some(message) = &self.save_error {
+            items.push(SettingsItem::Spacer { height: 12.0 });
+            items.push(SettingsItem::CenterText {
+                text: message.clone(),
+                size: 12.0,
+                color: self.theme().danger,
+            });
         }
+        items
     }
 
     pub(crate) fn rebuild_items_cache(&mut self) {

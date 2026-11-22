@@ -269,6 +269,7 @@ pub struct SettingsApp {
     pub(crate) plugin_detail_scroll: f32,
     pub(crate) plugin_detail_max_scroll: f32,
     pub(crate) plugin_status: Option<(String, bool)>,
+    pub(crate) save_error: Option<String>,
     pub(crate) plugin_settings_pages: Vec<PluginSettingsPage>,
     pub(crate) plugin_settings_error: Option<(u64, String)>,
     pub(crate) pending_plugin_setting: Option<PendingPluginSetting>,

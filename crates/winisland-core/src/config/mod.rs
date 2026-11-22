@@ -6,7 +6,7 @@ mod widgets;
 
 use serde::{Deserialize, Serialize};
 use winisland_utils::Educe;
-use winisland_utils::settings::Settings;
+use winisland_utils::settings::{Kind, Settings, Value};
 
 pub use lyrics::*;
 pub use migrate::*;
@@ -172,11 +172,6 @@ pub struct AppConfig {
     #[educe(Default = "system")]
     #[setting(choice("system" => "theme_system", "light" => "theme_light", "dark" => "theme_dark"))]
     pub settings_theme: String,
-    #[educe(Default = "square")]
-    pub mini_cover_shape: String,
-    #[educe(Default = "square")]
-    pub expanded_cover_shape: String,
-    pub cover_rotate: bool,
     #[educe(Default = "stable")]
     #[setting(choice("stable" => "channel_stable", "beta" => "channel_beta"))]
     pub update_channel: String,
@@ -211,4 +206,35 @@ pub struct AppConfig {
     #[serde(default)]
     #[educe(Default(expression = CONFIG_VERSION))]
     pub config_version: u32,
+}
+
+/// Clamps every schema-backed numeric field to the bounds declared by `#[setting]`.
+///
+/// Returns whether a field changed. A non-finite value falls back to the field
+/// default; a value already inside its bounds is left untouched, because the
+/// generated setter rounds to the field precision and would rewrite it.
+pub fn clamp_schema_numbers(config: &mut AppConfig) -> bool {
+    let defaults = AppConfig::default();
+    let mut changed = false;
+    for &field in AppConfig::FIELDS {
+        let Kind::Number(number) = &AppConfig::schema(field).kind else {
+            continue;
+        };
+        let Value::Number(value) = config.get(field) else {
+            continue;
+        };
+        if value.is_finite() && value >= number.min && value <= number.max {
+            continue;
+        }
+        let replacement = if value.is_finite() {
+            value.clamp(number.min, number.max)
+        } else {
+            match defaults.get(field) {
+                Value::Number(fallback) => fallback,
+                _ => continue,
+            }
+        };
+        changed |= config.set(field, Value::Number(replacement));
+    }
+    changed
 }

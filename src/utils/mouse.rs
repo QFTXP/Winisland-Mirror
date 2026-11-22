@@ -3,13 +3,17 @@ use std::time::Duration;
 use winisland_platform::VirtualKey;
 use winisland_render::{Path, Point, Rect};
 
-pub fn get_global_cursor_pos() -> (i32, i32) {
+/// The cursor position, or `None` when the platform cannot report it.
+///
+/// Callers must skip the frame's pointer work rather than substitute a
+/// coordinate: zero is the top-left corner of the desktop, which is a real
+/// place the island can be hit.
+pub fn get_global_cursor_pos() -> Option<(i32, i32)> {
     crate::platform::display()
         .cursor_position()
         .ok()
         .flatten()
         .map(|point| (point.x, point.y))
-        .unwrap_or_default()
 }
 
 pub fn is_point_in_rect(px: f64, py: f64, rx: f64, ry: f64, rw: f64, rh: f64) -> bool {

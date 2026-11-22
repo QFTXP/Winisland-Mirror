@@ -95,13 +95,18 @@ impl App {
             self.precise_frame_pacing = false;
             return;
         }
-        let (px, py) = if self.touch_id.is_some() {
-            (
+        let pointer = if self.touch_id.is_some() {
+            Some((
                 (self.touch_pos.x + self.geom.win_x as f64) as i32,
                 (self.touch_pos.y + self.geom.win_y as f64) as i32,
-            )
+            ))
         } else {
             get_global_cursor_pos()
+        };
+        // Every hit test below derives from this point. Without it the frame
+        // would have to guess a coordinate, so wait for the next one instead.
+        let Some((px, py)) = pointer else {
+            return;
         };
         self.update_right_drag(&window, px, py);
 

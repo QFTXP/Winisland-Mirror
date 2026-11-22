@@ -332,18 +332,17 @@ pub unsafe extern "C" fn island_state(
     out: *mut IslandStateV2,
 ) -> PluginStatus {
     status((|| {
-        // SAFETY: The caller supplies a live context and initialized output with its structure size.
-        let host = unsafe { access(context, token, CAP_EVENTS)? };
-        // SAFETY: The ABI requires a writable, initialized sized IslandStateV2 output.
-        unsafe {
-            read_struct(out)?;
+        if out.is_null() {
+            return Err(PluginStatus::InvalidArgument);
         }
+        // SAFETY: The caller supplies a live context.
+        let host = unsafe { access(context, token, CAP_EVENTS)? };
         let state = host
             .extensions
             .state
             .lock()
             .map_err(|_| PluginStatus::Internal)?;
-        // SAFETY: The sized output was checked and remains exclusively writable.
+        // SAFETY: The output was checked for null and remains exclusively writable.
         unsafe {
             *out = state.island;
         }

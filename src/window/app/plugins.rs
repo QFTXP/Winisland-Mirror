@@ -230,7 +230,9 @@ impl App {
             self.plugin_ui.modifiers = *modifiers;
             return false;
         }
-        let (px, py) = crate::utils::mouse::get_global_cursor_pos();
+        let Some((px, py)) = crate::utils::mouse::get_global_cursor_pos() else {
+            return false;
+        };
         let mut input = Event {
             x: (px - self.geom.win_x) as f32,
             y: (py - self.geom.win_y) as f32,
